@@ -1,0 +1,19 @@
+#
+# .gitignore file for PSoC Creator 3.2
+#
+
+# Log files
+*.log
+*.rpt
+
+# Temp directry
+*.cydsn/codegentemp/*
+
+# Results
+*.cydsn/DP8051/*
+*.cydsn/CortexM3/*
+*.cydsn/CortexM0/*
+
+# Archives
+Archive/*
+Backup/*
