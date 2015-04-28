@@ -15,6 +15,7 @@
 //  Constant Declarations
 //**********************************************************************
 #define COUNTER_CHAR_HANDLE     (0x000E)
+#define COUNTER_CCC_HANDLE      (0x0010)
 
 //**********************************************************************
 //  Variable Declarations
@@ -27,12 +28,64 @@ CYBLE_CONN_HANDLE_T  connectionHandle;
 // function
 uint8 deviceConnected = 0;
 
+// Variable to store the present Counter CCC data.
+struct GattAttribute {
+    uint8               dirty;
+    CYBLE_GATT_VALUE_T  value;
+}   counterCccDescriptor;
+
+// This flag is set when the Central device writes to
+// CCC (Client Characteristic Configuration) of the Counter
+// Characteristic to enable notifications
+uint8 enableCounterNotification = 0;
+
+void initializeCounterCccDescriptor(void) {
+    static uint8        cccValue[2];
+    
+    cccValue[0] = 0;
+    cccValue[1] = 0;
+    counterCccDescriptor.value.len = 2;
+    counterCccDescriptor.value.val = cccValue;
+    counterCccDescriptor.dirty = 1;
+}
+
+void queueCounterCccDescriptor(CYBLE_GATT_VALUE_T *value) {
+    counterCccDescriptor.value.len = value->len;
+    memcpy(counterCccDescriptor.value.val, value->val, value->len);
+    counterCccDescriptor.dirty = 1;
+}
+
+void updateCounterCccDescriptor(void) {
+    // Handle value to update the CCCD
+    CYBLE_GATT_HANDLE_VALUE_PAIR_T  handleValuePair;
+
+    // Update CCCD handle with notification status data
+    handleValuePair.attrHandle = COUNTER_CCC_HANDLE;
+    handleValuePair.value = counterCccDescriptor.value;
+    
+    // Send updated RGB control handle as attribute for read
+    // by central device
+    CyBle_GattsWriteAttributeValue(
+        &handleValuePair, 0,
+        &connectionHandle, CYBLE_GATT_DB_LOCALLY_INITIATED
+    );
+    
+    // Get notification flag
+    enableCounterNotification = counterCccDescriptor.value.val[0] & 1;
+    
+    // Clear dirty flag
+    counterCccDescriptor.dirty = 0;
+}
+
 void StackEventHandler(uint32 event, void *eventParam) {
     switch (event) {
         //======================================================
         // Mandatory events to be handled
         //======================================================
         case CYBLE_EVT_STACK_ON:
+            // Disable CCCD notification
+            initializeCounterCccDescriptor();
+
             // Start BLE advertisement for 30 seconds 
             CyBle_GappStartAdvertisement(CYBLE_ADVERTISING_FAST);
             break;
@@ -44,6 +97,14 @@ void StackEventHandler(uint32 event, void *eventParam) {
             // BLE link is established
             break;
 
+        case CYBLE_EVT_GAP_DEVICE_DISCONNECTED:
+            // Disable CCCD notification
+            initializeCounterCccDescriptor();
+        
+            // Start BLE advertisement for 30 seconds 
+            CyBle_GappStartAdvertisement(CYBLE_ADVERTISING_FAST);
+            break;
+        
         //======================================================
         //  GATT Events
         //======================================================
@@ -66,6 +127,32 @@ void StackEventHandler(uint32 event, void *eventParam) {
             // Update deviceConnected flag
             deviceConnected = 0;
 			
+            break;
+            
+        case CYBLE_EVT_GATTS_WRITE_REQ:
+            // This event is received when Central device sends
+            {
+                CYBLE_GATTS_WRITE_REQ_PARAM_T *writeReqParam;
+
+                // a Write command on an Attribute
+                writeReqParam =
+                    (CYBLE_GATTS_WRITE_REQ_PARAM_T *) eventParam;
+
+                // When this event is triggered, the peripheral has
+                // received a write command on the custom characteristic
+                // Check if the returned handle is matching to
+                // Counter CCCD Write Attribute
+                if (writeReqParam->handleValPair.attrHandle
+                    == COUNTER_CCC_HANDLE
+                ) {
+                    queueCounterCccDescriptor(
+                        &(writeReqParam->handleValPair.value)
+                    );
+                }
+
+                // Send the response to the write request received.
+                CyBle_GattsWriteRsp(connectionHandle);
+            }
             break;
             
         default:
@@ -122,9 +209,14 @@ int main() {
         CyBle_ProcessEvents();
 
         if (deviceConnected) {
-            if (triggerNotification) {
+            if (counterCccDescriptor.dirty) {
+                // Update Counter CCCD
+                updateCounterCccDescriptor();
+            } else if (triggerNotification) {
                 // Send notification if required
-                sendCounterNotification(count);
+                if (enableCounterNotification) {
+                    sendCounterNotification(count);
+                }
                 triggerNotification = 0;
             } else {
                 // Update counter value
