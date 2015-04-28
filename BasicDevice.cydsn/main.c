@@ -90,9 +90,23 @@ void updateCounter(uint32 data) {
     );
 }
 
+void sendCounterNotification(uint32 data) {
+	// 'notificationHandle' stores Counter notification data parameters
+	CYBLE_GATTS_HANDLE_VALUE_NTF_T  handleValueNotify;	
+	
+	// Update notification handle with Counter  data
+	handleValueNotify.attrHandle = COUNTER_CHAR_HANDLE;
+	handleValueNotify.value.val = (uint8*)&data;
+	handleValueNotify.value.len = sizeof data;
+	
+	// Send the updated handle as part of attribute for notifications
+	CyBle_GattsNotification(connectionHandle, &handleValueNotify);
+}
+
 int main() {
     CYBLE_API_RESULT_T apiResult;
     uint32 count = 0;
+    uint8   triggerNotification = 0;
 
     // Enable global interrupts
     CyGlobalIntEnable;
@@ -108,10 +122,18 @@ int main() {
         CyBle_ProcessEvents();
 
         if (deviceConnected) {
-            // Update counter value
-            updateCounter(count);
+            if (triggerNotification) {
+                // Send notification if required
+                sendCounterNotification(count);
+                triggerNotification = 0;
+            } else {
+                // Update counter value
+                CyDelayUs(100);
+                updateCounter(count);
+                count++;
+                triggerNotification = ((count & 0x000000FF) == 0);
+            }
         }
-        count++;
     }
 }
 
