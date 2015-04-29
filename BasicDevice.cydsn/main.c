@@ -174,6 +174,16 @@ int main() {
             // Update RGB Descriptor
             updateRgbDescriptor();
         }
+
+        // Enter to deep sleep mode
+        {
+            CYBLE_LP_MODE_T state;
+
+            state = CyBle_EnterLPM(CYBLE_BLESS_DEEPSLEEP);
+            if (state == CYBLE_BLESS_DEEPSLEEP) {
+                CySysPmDeepSleep();
+            }
+        }
     }
 }
 
