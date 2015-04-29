@@ -220,10 +220,19 @@ int main() {
                 triggerNotification = 0;
             } else {
                 // Update counter value
-                CyDelayUs(100);
                 updateCounter(count);
                 count++;
                 triggerNotification = ((count & 0x000000FF) == 0);
+            }
+        }
+        
+        // Enter to deep sleep mode
+        {
+            CYBLE_LP_MODE_T state;
+
+            state = CyBle_EnterLPM(CYBLE_BLESS_DEEPSLEEP);
+            if (state == CYBLE_BLESS_DEEPSLEEP) {
+                CySysPmDeepSleep();
             }
         }
     }
