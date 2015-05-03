@@ -190,6 +190,12 @@ void sendCounterNotification(uint32 data) {
 	CyBle_GattsNotification(connectionHandle, &handleValueNotify);
 }
 
+uint8 triggerUpdateCounter = 0;
+
+void Watchdog0_cb(void) {
+    triggerUpdateCounter = 1;
+}
+
 int main() {
     CYBLE_API_RESULT_T apiResult;
     uint32 count = 0;
@@ -197,6 +203,9 @@ int main() {
 
     // Enable global interrupts
     CyGlobalIntEnable;
+    
+    // Initialize the watchdog timer
+    CySysWdtSetIsrCallback(CY_SYS_WDT_COUNTER0, Watchdog0_cb);
 
     // Initialize the BLE device.
     apiResult = CyBle_Start(StackEventHandler);
@@ -218,11 +227,12 @@ int main() {
                     sendCounterNotification(count);
                 }
                 triggerNotification = 0;
-            } else {
+            } else if (triggerUpdateCounter) {
                 // Update counter value
-                updateCounter(count);
                 count++;
-                triggerNotification = ((count & 0x000000FF) == 0);
+                updateCounter(count);
+                triggerNotification = ((count & 0x0000000F) == 0);
+                triggerUpdateCounter = 0;
             }
         }
         
