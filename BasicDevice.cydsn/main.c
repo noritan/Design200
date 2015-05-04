@@ -122,7 +122,7 @@ void StackEventHandler(uint32 event, void *eventParam) {
             // Request to update the connection interval
             {
                 CYBLE_GAP_CONN_UPDATE_PARAM_T connParam = {
-                    24, 24, 0, 30
+                    24, 26, 0, 30
                 };
                 
                 CyBle_L2capLeConnectionParamUpdateRequest(
