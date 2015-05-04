@@ -119,6 +119,17 @@ void StackEventHandler(uint32 event, void *eventParam) {
             // to check connection status
 			deviceConnected = 1;
 			
+            // Request to update the connection interval
+            {
+                CYBLE_GAP_CONN_UPDATE_PARAM_T connParam = {
+                    24, 24, 0, 30
+                };
+                
+                CyBle_L2capLeConnectionParamUpdateRequest(
+                    connectionHandle.bdHandle,
+                    &connParam
+                );
+            }
             break;
         
         case CYBLE_EVT_GATT_DISCONNECT_IND:
