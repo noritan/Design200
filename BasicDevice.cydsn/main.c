@@ -16,6 +16,7 @@
 //**********************************************************************
 #define COUNTER_CHAR_HANDLE     (0x000E)
 #define COUNTER_CCC_HANDLE      (0x0010)
+#define RGB_CHAR_HANDLE         (0x0012)
 
 //**********************************************************************
 //  Variable Declarations
@@ -28,11 +29,14 @@ CYBLE_CONN_HANDLE_T  connectionHandle;
 // function
 uint8 deviceConnected = 0;
 
-// Variable to store the present Counter CCC data.
+// GattAttribute Store structure
 struct GattAttribute {
     uint8               dirty;
     CYBLE_GATT_VALUE_T  value;
-}   counterCccDescriptor;
+};
+
+// Variable to store the present Counter CCC data.
+struct GattAttribute    counterCccDescriptor;
 
 // This flag is set when the Central device writes to
 // CCC (Client Characteristic Configuration) of the Counter
@@ -77,6 +81,48 @@ void updateCounterCccDescriptor(void) {
     counterCccDescriptor.dirty = 0;
 }
 
+// Variable to store the present RGB LED control data.
+struct GattAttribute    rgbDescriptor;
+
+void initializeRgbDescriptor(void) {
+    static uint8        rgbValue[1];
+    
+    rgbValue[0] = 0;
+    rgbDescriptor.value.len = 1;
+    rgbDescriptor.value.val = rgbValue;
+    rgbDescriptor.dirty = 1;
+}
+
+void queueRgbDescriptor(CYBLE_GATT_VALUE_T *value) {
+    rgbDescriptor.value.len = value->len;
+    memcpy(rgbDescriptor.value.val, value->val, value->len);
+    rgbDescriptor.dirty = 1;
+}
+
+void updateRgbDescriptor(void) {
+    // Handle value to update the descriptor
+    CYBLE_GATT_HANDLE_VALUE_PAIR_T  handleValuePair;
+
+    // Update descriptor handle with data
+    handleValuePair.attrHandle = RGB_CHAR_HANDLE;
+    handleValuePair.value = rgbDescriptor.value;
+    
+    // Send updated RGB control handle as attribute for read
+    // by central device
+    CyBle_GattsWriteAttributeValue(
+        &handleValuePair, 0,
+        &connectionHandle, CYBLE_GATT_DB_LOCALLY_INITIATED
+    );
+    
+    // Update the LED color
+    LED_Green_Write(!(rgbDescriptor.value.val[0] & 4));
+    LED_Red_Write(  !(rgbDescriptor.value.val[0] & 2));
+    LED_Blue_Write( !(rgbDescriptor.value.val[0] & 1));
+    
+    // Clear dirty flag
+    rgbDescriptor.dirty = 0;
+}
+
 void StackEventHandler(uint32 event, void *eventParam) {
     switch (event) {
         //======================================================
@@ -88,6 +134,10 @@ void StackEventHandler(uint32 event, void *eventParam) {
 
             // Start BLE advertisement for 30 seconds 
             CyBle_GappStartAdvertisement(CYBLE_ADVERTISING_FAST);
+
+            // Initialize descriptor
+            initializeRgbDescriptor();
+
             break;
 
         //======================================================
@@ -146,6 +196,16 @@ void StackEventHandler(uint32 event, void *eventParam) {
                     == COUNTER_CCC_HANDLE
                 ) {
                     queueCounterCccDescriptor(
+                        &(writeReqParam->handleValPair.value)
+                    );
+                }
+
+                // Check if the returned handle is matching to
+                // RGB Control Write Attribute
+                if (writeReqParam->handleValPair.attrHandle
+                    == RGB_CHAR_HANDLE
+                ) {
+                    queueRgbDescriptor(
                         &(writeReqParam->handleValPair.value)
                     );
                 }
@@ -236,6 +296,12 @@ int main() {
             }
         }
         
+        // Scan update queue
+        if (rgbDescriptor.dirty) {
+            // Update RGB Descriptor
+            updateRgbDescriptor();
+        }
+
         // Enter to deep sleep mode
         {
             CYBLE_LP_MODE_T state;
