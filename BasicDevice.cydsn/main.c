@@ -14,9 +14,9 @@
 //**********************************************************************
 //  Constant Declarations
 //**********************************************************************
-#define COUNTER_CHAR_HANDLE     (0x000E)
-#define COUNTER_CCC_HANDLE      (0x0010)
-#define RGB_CHAR_HANDLE         (0x0012)
+#define COUNTER_CHAR_HANDLE     (CYBLE_CUSTOM_SERVICE_COUNTER_CHAR_CHAR_HANDLE)
+#define COUNTER_CCC_HANDLE      (CYBLE_CUSTOM_SERVICE_COUNTER_CHAR_COUNTER_CCC_DESC_HANDLE)
+#define RGB_CHAR_HANDLE         (CYBLE_CUSTOM_SERVICE_RGB_CHAR_CHAR_HANDLE)
 
 //**********************************************************************
 //  Variable Declarations
@@ -35,6 +35,9 @@ struct GattAttribute {
     CYBLE_GATT_VALUE_T  value;
 };
 
+//**********************************************************************
+// Counter CCC descriptor handler
+//**********************************************************************
 // Variable to store the present Counter CCC data.
 struct GattAttribute    counterCccDescriptor;
 
@@ -81,6 +84,9 @@ void updateCounterCccDescriptor(void) {
     counterCccDescriptor.dirty = 0;
 }
 
+//**********************************************************************
+// RGB descriptor handler
+//**********************************************************************
 // Variable to store the present RGB LED control data.
 struct GattAttribute    rgbDescriptor;
 
@@ -123,6 +129,9 @@ void updateRgbDescriptor(void) {
     rgbDescriptor.dirty = 0;
 }
 
+//**********************************************************************
+// BLE event handler
+//**********************************************************************
 void StackEventHandler(uint32 event, void *eventParam) {
     switch (event) {
         //======================================================
@@ -220,6 +229,9 @@ void StackEventHandler(uint32 event, void *eventParam) {
     }
 }
 
+//**********************************************************************
+// Counter characteristics handler
+//**********************************************************************
 void updateCounter(uint32 data) {
     // Handle value to update the characteristic
     CYBLE_GATT_HANDLE_VALUE_PAIR_T handleValuePair;
@@ -250,12 +262,19 @@ void sendCounterNotification(uint32 data) {
 	CyBle_GattsNotification(connectionHandle, &handleValueNotify);
 }
 
+//**********************************************************************
+// Watchdog timer #0 handler
+//**********************************************************************
 uint8 triggerUpdateCounter = 0;
 
 void Watchdog0_cb(void) {
+    // Trigger Counter update every 1/16sec
     triggerUpdateCounter = 1;
 }
 
+//**********************************************************************
+// Main Routine
+//**********************************************************************
 int main() {
     CYBLE_API_RESULT_T apiResult;
     uint32 count = 0;
@@ -277,29 +296,37 @@ int main() {
         // Must be called at least once in a BLE connection interval
         CyBle_ProcessEvents();
 
-        if (deviceConnected) {
-            if (counterCccDescriptor.dirty) {
-                // Update Counter CCCD
-                updateCounterCccDescriptor();
-            } else if (triggerNotification) {
+        // Serve ONE database operation
+        while (deviceConnected) {
+            // Counter characteristics handling
+            if (triggerNotification) {
                 // Send notification if required
                 if (enableCounterNotification) {
                     sendCounterNotification(count);
                 }
                 triggerNotification = 0;
-            } else if (triggerUpdateCounter) {
+                break;
+            }
+            if (triggerUpdateCounter) {
                 // Update counter value
                 count++;
                 updateCounter(count);
                 triggerNotification = ((count & 0x0000000F) == 0);
                 triggerUpdateCounter = 0;
+                break;
             }
-        }
-        
-        // Scan update queue
-        if (rgbDescriptor.dirty) {
-            // Update RGB Descriptor
-            updateRgbDescriptor();
+            if (counterCccDescriptor.dirty) {
+                // Update Counter CCCD
+                updateCounterCccDescriptor();
+                break;
+            }
+            // RGB characteristics handling
+            if (rgbDescriptor.dirty) {
+                // Update RGB Descriptor
+                updateRgbDescriptor();
+                break;
+            }
+            break; // Do not forget to exit            
         }
 
         // Enter to deep sleep mode
