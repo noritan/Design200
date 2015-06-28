@@ -14,9 +14,12 @@
 //**********************************************************************
 //  Constant Declarations
 //**********************************************************************
-#define COUNTER_CHAR_HANDLE     (CYBLE_CUSTOM_SERVICE_COUNTER_CHAR_CHAR_HANDLE)
-#define COUNTER_CCC_HANDLE      (CYBLE_CUSTOM_SERVICE_COUNTER_CHAR_COUNTER_CCC_DESC_HANDLE)
-#define RGB_CHAR_HANDLE         (CYBLE_CUSTOM_SERVICE_RGB_CHAR_CHAR_HANDLE)
+#define COUNTER_CHAR_HANDLE\
+    (CYBLE_CUSTOM_SERVICE_COUNTER_CHAR_CHAR_HANDLE)
+#define COUNTER_CCC_HANDLE\
+    (CYBLE_CUSTOM_SERVICE_COUNTER_CHAR_COUNTER_CCC_DESC_HANDLE)
+#define RGB_CHAR_HANDLE\
+    (CYBLE_CUSTOM_SERVICE_RGB_CHAR_CHAR_HANDLE)
 
 //**********************************************************************
 //  Variable Declarations
